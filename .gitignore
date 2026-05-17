@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment files — NEVER commit these
+.env
+.env.local
+backend/.env
+frontend/.env.local
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/app/**/__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+**/.DS_Store
+Thumbs.db
+
+# Supabase
+supabase/.env
+supabase/config.toml
+supabase/.temp/
+supabase/.output/
+
+# IDE / tooling (local only)
+.vscode/
+.idea/
+.claude/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Internal planning docs — not for public repo
+Memoira-PRD.md
+DEPLOY.md
+
+# Uploads / temp
+uploads/
+*.log
