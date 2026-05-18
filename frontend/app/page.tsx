@@ -287,13 +287,14 @@ export default function HomePage() {
 
               {/* New Memory */}
               <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger render={
-                  <button
-                    className="font-[family-name:var(--font-caveat)] text-lg px-4 py-2 rounded-xl whitespace-nowrap transition-opacity hover:opacity-90"
-                    style={{ background: currentTheme.accent, color: "#fff" }}>
-                    + New memory
-                  </button>
-                } />
+                <button
+                  onClick={() => setOpen(true)}
+                  title="New memory"
+                  className="font-[family-name:var(--font-caveat)] text-lg rounded-xl whitespace-nowrap transition-opacity hover:opacity-90 flex items-center justify-center"
+                  style={{ background: currentTheme.accent, color: "#fff" }}>
+                  <span className="sm:hidden w-9 h-9 flex items-center justify-center text-2xl leading-none">+</span>
+                  <span className="hidden sm:block px-4 py-2">+ New memory</span>
+                </button>
                   <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                       <DialogTitle style={{ fontFamily: "var(--font-playfair)" }}>Start a new memory</DialogTitle>
@@ -325,7 +326,7 @@ export default function HomePage() {
                         </Label>
                       </div>
                       <div className={form.single_day ? "" : "grid grid-cols-2 gap-3"}>
-                        <div className="space-y-1.5">
+                        <div className="space-y-1.5 min-w-0">
                           <Label htmlFor="start" className="font-[family-name:var(--font-caveat)] text-base">
                             {form.single_day ? "Date" : "Start date"} <span className="opacity-50">(optional)</span>
                           </Label>
@@ -334,20 +335,20 @@ export default function HomePage() {
                             type="date"
                             value={form.start_date}
                             onChange={(e) => setForm({ ...form, start_date: e.target.value, end_date: form.single_day ? e.target.value : form.end_date })}
-                            className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
-                            style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
+                            className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                            style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
                           />
                         </div>
                         {!form.single_day && (
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 min-w-0">
                             <Label htmlFor="end" className="font-[family-name:var(--font-caveat)] text-base">End date <span className="opacity-50">(optional)</span></Label>
                             <input
                               id="end"
                               type="date"
                               value={form.end_date}
                               onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                              className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
-                              style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
+                              className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                              style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
                             />
                           </div>
                         )}
@@ -413,16 +414,7 @@ export default function HomePage() {
           <p className="font-[family-name:var(--font-caveat)] text-lg" style={{ color: currentTheme.sub, opacity: sortedTrips.length > 0 ? 0.65 : 0 }}>
             {sortedTrips.length} journal{sortedTrips.length !== 1 ? "s" : ""}
           </p>
-          <div className="flex items-center gap-1.5">
-            <span className="font-[family-name:var(--font-caveat)] text-base" style={{ color: currentTheme.sub, opacity: 0.7 }}>Theme</span>
-            <select
-              value={homeTheme}
-              onChange={e => switchHomeTheme(e.target.value as HomeThemeKey)}
-              className="font-[family-name:var(--font-caveat)] text-base px-2.5 py-1.5 rounded-lg outline-none"
-              style={{ border: `1px solid ${currentTheme.accent}35`, background: "rgba(255,255,255,0.45)", color: currentTheme.sub, cursor: "pointer" }}>
-              {HOME_THEMES.map(t => <option key={t.key} value={t.key}>{t.icon} {t.label}</option>)}
-            </select>
-          </div>
+          <HomeThemeDropdown value={homeTheme} onChange={switchHomeTheme} currentTheme={currentTheme} />
         </div>
 
         {loading ? (
@@ -432,7 +424,7 @@ export default function HomePage() {
             No journals matching &quot;{search}&quot;
           </p>
         ) : sortedTrips.length === 0 ? (
-          <EmptyState onNew={() => setOpen(true)} accent={currentTheme.accent} />
+          <EmptyState onNew={() => setOpen(true)} accent={currentTheme.accent} text={currentTheme.text} sub={currentTheme.sub} />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {filteredTrips.map((trip) => <JournalCard key={trip.id} trip={trip} accent={currentTheme.accent} />)}
@@ -487,8 +479,8 @@ export default function HomePage() {
                 type="date"
                 value={dobInput}
                 onChange={e => setDobInput(e.target.value)}
-                className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
-                style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
+                className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
               />
             </div>
             <div className="space-y-1.5">
@@ -725,14 +717,16 @@ function JournalCard({ trip, accent }: { trip: Trip; accent: string }) {
   );
 }
 
-function EmptyState({ onNew, accent }: { onNew: () => void; accent: string }) {
+function EmptyState({ onNew, accent, text, sub }: { onNew: () => void; accent: string; text: string; sub: string }) {
   return (
-    <div className="text-center py-28 space-y-5">
-      <div className="text-6xl">📖</div>
-      <p style={{ fontFamily: "var(--font-playfair)", fontSize: "1.8rem", color: "#4a5e3a", fontWeight: 600 }}>
+    <div className="text-center py-12 space-y-5">
+      <div className="flex justify-center">
+        <JournalDoodle size={64} color={sub} />
+      </div>
+      <p style={{ fontFamily: "var(--font-playfair)", fontSize: "1.8rem", color: text, fontWeight: 600 }}>
         Your first chapter is waiting.
       </p>
-      <p className="font-[family-name:var(--font-caveat)] text-xl max-w-sm mx-auto" style={{ color: "#7a8e6a" }}>
+      <p className="font-[family-name:var(--font-caveat)] text-xl max-w-sm mx-auto" style={{ color: sub }}>
         Create a journal, upload your photos and voice notes, and let AI turn them into a scrapbook.
       </p>
       <button onClick={onNew}
@@ -740,6 +734,77 @@ function EmptyState({ onNew, accent }: { onNew: () => void; accent: string }) {
         style={{ background: accent, color: "#fff" }}>
         + Start your first journal
       </button>
+    </div>
+  );
+}
+
+function HomeThemeDropdown({ value, onChange, currentTheme }: {
+  value: HomeThemeKey;
+  onChange: (k: HomeThemeKey) => void;
+  currentTheme: typeof HOME_THEMES[number];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent | TouchEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, [open]);
+
+  const selected = HOME_THEMES.find(t => t.key === value) ?? HOME_THEMES[0];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="font-[family-name:var(--font-caveat)] text-sm px-2.5 py-1.5 rounded-lg outline-none flex items-center gap-1.5"
+        style={{
+          border: `1px solid ${currentTheme.accent}40`,
+          background: "rgba(255,255,255,0.45)",
+          color: currentTheme.sub,
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+        }}>
+        <span>{selected.icon} {selected.label}</span>
+        <svg width="8" height="5" viewBox="0 0 9 5" fill="none"
+          style={{ marginLeft: 2, flexShrink: 0, transition: "transform 0.15s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
+          <path d="M1 1l3.5 3L8 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full right-0 mt-1 rounded-xl overflow-hidden shadow-xl z-50"
+          style={{
+            background: "rgba(255,255,255,0.95)",
+            border: `1px solid ${currentTheme.accent}30`,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            minWidth: 120,
+          }}>
+          {HOME_THEMES.map(t => (
+            <button
+              key={t.key}
+              onClick={() => { onChange(t.key); setOpen(false); }}
+              className="w-full px-3 py-2 text-left font-[family-name:var(--font-caveat)] text-sm flex items-center gap-2 transition-opacity hover:opacity-75"
+              style={{
+                color: t.key === value ? currentTheme.accent : currentTheme.sub,
+                fontWeight: t.key === value ? 600 : 400,
+                background: t.key === value ? `${currentTheme.accent}18` : "transparent",
+              }}>
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+              {t.key === value && <span className="ml-auto text-xs opacity-70">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -228,7 +228,7 @@ export default function TripPage({ params, searchParams }: {
                   </div>
                 )}
                 {notesAndVoice.length === 0 && !activeUpload && (
-                  <p className="text-center text-sm py-6" style={{ color: "#9a8070" }}>
+                  <p className="font-[family-name:var(--font-caveat)] text-base text-center py-6" style={{ color: "#9a8070" }}>
                     No notes or voice recordings yet — tap a tile above to start.
                   </p>
                 )}
