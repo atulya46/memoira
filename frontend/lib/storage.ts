@@ -28,9 +28,10 @@ export async function uploadPhoto(file: File, tripId: string): Promise<string> {
 }
 
 export async function uploadVoice(blob: Blob, tripId: string, displayName = ""): Promise<string> {
+  const ext = blob.type.includes("mp4") ? "mp4" : "webm";
   const form = new FormData();
   form.append("trip_id", tripId);
-  form.append("file", blob, "voice.webm");
+  form.append("file", blob, `voice.${ext}`);
   if (displayName) form.append("display_name", displayName);
 
   const res = await fetch(`${API_URL}/api/memories/upload-voice`, {

@@ -184,7 +184,8 @@ async def upload_voice(
 
     file_bytes = await file.read()
     content_type = _validate_audio_upload(file, file_bytes)
-    path = f"{user_id}/{trip_id}/{uuid.uuid4()}.webm"
+    ext = "mp4" if "mp4" in content_type else "webm"
+    path = f"{user_id}/{trip_id}/{uuid.uuid4()}.{ext}"
 
     file_path = _upload_to_storage(file_bytes, path, content_type)
 

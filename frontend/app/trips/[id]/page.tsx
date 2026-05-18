@@ -55,7 +55,7 @@ export default function TripPage({ params, searchParams }: {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }); load(); }, [id]);
 
   async function handleLinkMemories() {
     setLinking(true);

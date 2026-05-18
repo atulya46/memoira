@@ -25,7 +25,10 @@ export default function VoiceRecorder({ tripId, onUploaded }: Props) {
 
   async function startRecording() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const recorder = new MediaRecorder(stream);
+    // Pick the first MIME type the device supports — iOS uses audio/mp4, desktop uses audio/webm
+    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]
+      .find(t => MediaRecorder.isTypeSupported(t)) ?? "";
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     chunksRef.current = [];
     recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
     recorder.onstop = handleStop;
@@ -44,7 +47,9 @@ export default function VoiceRecorder({ tripId, onUploaded }: Props) {
   }
 
   async function handleStop() {
-    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    // Use the recorder's actual mimeType (audio/mp4 on iOS, audio/webm on desktop)
+    const mimeType = mediaRef.current?.mimeType || "audio/mp4";
+    const blob = new Blob(chunksRef.current, { type: mimeType });
     setUploading(true);
     try {
       await uploadVoice(blob, tripId, displayName);

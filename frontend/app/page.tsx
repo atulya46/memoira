@@ -94,6 +94,15 @@ export default function HomePage() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  // Reload trips when page is restored from iOS bfcache (back/forward navigation)
+  useEffect(() => {
+    function handlePageShow(e: PageTransitionEvent) {
+      if (e.persisted) loadTrips();
+    }
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   // Scroll to top when dialog opens so iOS keyboard doesn't push it off-screen
   useEffect(() => {
     if (open) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
@@ -179,6 +188,7 @@ export default function HomePage() {
       const trip = await api.trips.create(payload);
       setOpen(false);
       setForm({ name: "", start_date: "", end_date: "", single_day: false });
+      window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
       router.push(`/trips/${trip.id}`);
     } catch { setCreating(false); }
   }
@@ -297,7 +307,7 @@ export default function HomePage() {
                   title="New memory"
                   className="font-[family-name:var(--font-caveat)] text-lg rounded-xl whitespace-nowrap transition-opacity hover:opacity-90 flex items-center justify-center"
                   style={{ background: currentTheme.accent, color: "#fff" }}>
-                  <span className="sm:hidden w-9 h-9 flex items-center justify-center text-2xl leading-none">+</span>
+                  <span className="sm:hidden w-9 h-9 grid place-items-center font-sans text-xl font-light">+</span>
                   <span className="hidden sm:block px-4 py-2">+ New memory</span>
                 </button>
                   <DialogContent className="sm:max-w-md">
@@ -340,8 +350,8 @@ export default function HomePage() {
                             type="date"
                             value={form.start_date}
                             onChange={(e) => setForm({ ...form, start_date: e.target.value, end_date: form.single_day ? e.target.value : form.end_date })}
-                            className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
-                            style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
+                            className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                            style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", WebkitAppearance: "none" }}
                           />
                         </div>
                         {!form.single_day && (
@@ -352,8 +362,8 @@ export default function HomePage() {
                               type="date"
                               value={form.end_date}
                               onChange={(e) => setForm({ ...form, end_date: e.target.value })}
-                              className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
-                              style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
+                              className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                              style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", WebkitAppearance: "none" }}
                             />
                           </div>
                         )}
@@ -484,8 +494,8 @@ export default function HomePage() {
                 type="date"
                 value={dobInput}
                 onChange={e => setDobInput(e.target.value)}
-                className="w-full max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
-                style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", boxSizing: "border-box" }}
+                className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-base"
+                style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008", WebkitAppearance: "none" }}
               />
             </div>
             <div className="space-y-1.5">
