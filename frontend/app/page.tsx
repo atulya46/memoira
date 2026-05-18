@@ -94,6 +94,11 @@ export default function HomePage() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
+  // Scroll to top when dialog opens so iOS keyboard doesn't push it off-screen
+  useEffect(() => {
+    if (open) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+  }, [open]);
+
   function switchHomeTheme(key: HomeThemeKey) {
     setHomeTheme(key);
     localStorage.setItem("memoiraaa_home_theme", key);
@@ -325,7 +330,7 @@ export default function HomePage() {
                           Single-day journal
                         </Label>
                       </div>
-                      <div className={form.single_day ? "" : "grid grid-cols-2 gap-3"}>
+                      <div className={form.single_day ? "" : "grid grid-cols-1 sm:grid-cols-2 gap-3"}>
                         <div className="space-y-1.5 min-w-0">
                           <Label htmlFor="start" className="font-[family-name:var(--font-caveat)] text-base">
                             {form.single_day ? "Date" : "Start date"} <span className="opacity-50">(optional)</span>
@@ -719,7 +724,7 @@ function JournalCard({ trip, accent }: { trip: Trip; accent: string }) {
 
 function EmptyState({ onNew, accent, text, sub }: { onNew: () => void; accent: string; text: string; sub: string }) {
   return (
-    <div className="text-center py-12 space-y-5">
+    <div className="text-center py-6 space-y-5">
       <div className="flex justify-center">
         <JournalDoodle size={64} color={sub} />
       </div>

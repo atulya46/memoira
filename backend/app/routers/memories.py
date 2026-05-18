@@ -1,6 +1,6 @@
 from __future__ import annotations
-import uuid, io
-from fastapi import APIRouter, HTTPException, Header, UploadFile, File, Form
+import uuid, io, re
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Header, UploadFile, File, Form
 from app.models.schemas import MemoryProcessRequest, MemoryUpdateRequest
 from app.db.client import supabase
 from app.services import claude_service, whisper_service
@@ -48,6 +48,41 @@ def _extract_exif(image_bytes: bytes) -> dict:
         return {}
 
 router = APIRouter(prefix="/api/memories", tags=["memories"])
+
+
+async def _analyze_photo_background(memory_id: str, file_bytes: bytes, content_type: str, exif: dict) -> None:
+    try:
+        ai_metadata = await claude_service.analyze_image_bytes(file_bytes, content_type)
+        merged = {**ai_metadata, **exif}
+    except Exception:
+        merged = exif
+    if merged:
+        supabase.table("memories").update({"ai_metadata": merged}).eq("id", memory_id).execute()
+
+
+async def _transcribe_voice_background(memory_id: str, file_bytes: bytes, display_name: str) -> None:
+    try:
+        raw = await whisper_service.transcribe_audio_bytes(file_bytes)
+        _replacement = (display_name + ": ") if display_name else ""
+        transcription = re.sub(
+            r"(?im)^\s*\[?(narrator|speaker\s*\d*|unknown\s*speaker)\]?\s*[:.：]?\s*",
+            _replacement,
+            raw,
+        ).strip()
+    except Exception:
+        transcription = ""
+
+    entities: dict = {}
+    if transcription:
+        try:
+            entities = await claude_service.extract_voice_entities(transcription, user_name=display_name)
+        except Exception:
+            pass
+
+    updates: dict = {"ai_metadata": entities or {}}
+    if transcription:
+        updates["content"] = transcription
+    supabase.table("memories").update(updates).eq("id", memory_id).execute()
 
 
 def _upload_to_storage(file_bytes: bytes, path: str, content_type: str) -> str:
@@ -100,6 +135,7 @@ def _count_trip_memories(trip_id: str, user_id: str, memory_type: str | None = N
 
 @router.post("/upload-image", status_code=201)
 async def upload_image(
+    background_tasks: BackgroundTasks,
     trip_id: str = Form(...),
     file: UploadFile = File(...),
     authorization: str = Header(...),
@@ -116,30 +152,27 @@ async def upload_image(
     path = f"{user_id}/{trip_id}/{uuid.uuid4()}.{extension}"
 
     file_path = _upload_to_storage(file_bytes, path, content_type)
-
     exif = _extract_exif(file_bytes)
 
-    try:
-        ai_metadata = await claude_service.analyze_image_bytes(file_bytes, content_type)
-    except Exception:
-        ai_metadata = {}
-
-    ai_metadata = {**ai_metadata, **exif}   # EXIF data wins for date/gps
-
+    # Insert memory immediately so upload always succeeds fast
     result = supabase.table("memories").insert({
         "trip_id": trip_id,
         "user_id": user_id,
         "type": "photo",
         "file_path": file_path,
-        "ai_metadata": ai_metadata,
+        "ai_metadata": exif,
         "needs_clarification": False,
     }).execute()
+
+    # AI analysis runs after response is returned — never blocks or times out the upload
+    background_tasks.add_task(_analyze_photo_background, result.data[0]["id"], file_bytes, content_type, exif)
 
     return sign_memory(result.data[0])
 
 
 @router.post("/upload-voice", status_code=201)
 async def upload_voice(
+    background_tasks: BackgroundTasks,
     trip_id: str = Form(...),
     file: UploadFile = File(...),
     authorization: str = Header(...),
@@ -155,34 +188,18 @@ async def upload_voice(
 
     file_path = _upload_to_storage(file_bytes, path, content_type)
 
-    try:
-        raw_transcription = await whisper_service.transcribe_audio_bytes(file_bytes)
-        # Clean up generic speaker labels Whisper sometimes inserts
-        import re
-        _replacement = (display_name + ": ") if display_name else ""
-        # Handles: "Narrator:", "[Narrator]:", "Speaker 1:", "Unknown Speaker.", etc.
-        transcription = re.sub(
-            r"(?im)^\s*\[?(narrator|speaker\s*\d*|unknown\s*speaker)\]?\s*[:.：]?\s*",
-            _replacement,
-            raw_transcription,
-        ).strip()
-    except Exception:
-        transcription = ""
-
-    try:
-        entities = await claude_service.extract_voice_entities(transcription, user_name=display_name) if transcription else {}
-    except Exception:
-        entities = {}
-
+    # Insert memory immediately — transcription fills in via background task
     result = supabase.table("memories").insert({
         "trip_id": trip_id,
         "user_id": user_id,
         "type": "voice",
         "file_path": file_path,
-        "content": transcription,
-        "ai_metadata": entities,
+        "content": "",
+        "ai_metadata": {},
         "needs_clarification": False,
     }).execute()
+
+    background_tasks.add_task(_transcribe_voice_background, result.data[0]["id"], file_bytes, display_name)
 
     return sign_memory(result.data[0])
 
