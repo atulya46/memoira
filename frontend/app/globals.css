@@ -111,4 +111,21 @@
   h1, h2, h3 {
     font-family: var(--font-playfair), serif;
   }
+  input,
+  select,
+  textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+  input[type="date"] {
+    appearance: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+  }
+  input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
 }

@@ -16,7 +16,7 @@ async def list_trips(authorization: str = Header(...)):
     user_id = get_user_id(authorization)
     result = (
         supabase.table("trips")
-        .select("*, memories(id, type, file_path, file_url, ai_metadata, created_at), scrapbooks(id, theme)")
+        .select("*, memories(id, type, file_url, ai_metadata, created_at), scrapbooks(id, theme)")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()

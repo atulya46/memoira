@@ -87,11 +87,25 @@ async def _transcribe_voice_background(memory_id: str, file_bytes: bytes, displa
 
 def _upload_to_storage(file_bytes: bytes, path: str, content_type: str) -> str:
     # Upload via service role key — bypasses storage RLS entirely
-    supabase.storage.from_("memories").upload(
-        path=path,
-        file=file_bytes,
-        file_options={"content-type": content_type, "upsert": "false"},
-    )
+    try:
+        supabase.storage.from_("memories").upload(
+            path=path,
+            file=file_bytes,
+            file_options={"content-type": content_type, "upsert": "false"},
+        )
+    except Exception as exc:
+        message = str(exc).lower()
+        if "bucket" not in message and "not found" not in message:
+            raise
+        try:
+            supabase.storage.create_bucket("memories", options={"public": False})
+        except Exception:
+            pass
+        supabase.storage.from_("memories").upload(
+            path=path,
+            file=file_bytes,
+            file_options={"content-type": content_type, "upsert": "false"},
+        )
     return path
 
 
@@ -159,7 +173,7 @@ async def upload_image(
         "trip_id": trip_id,
         "user_id": user_id,
         "type": "photo",
-        "file_path": file_path,
+        "file_url": file_path,
         "ai_metadata": exif,
         "needs_clarification": False,
     }).execute()
@@ -194,7 +208,7 @@ async def upload_voice(
         "trip_id": trip_id,
         "user_id": user_id,
         "type": "voice",
-        "file_path": file_path,
+        "file_url": file_path,
         "content": "",
         "ai_metadata": {},
         "needs_clarification": False,
@@ -290,10 +304,10 @@ async def update_memory(memory_id: str, body: MemoryUpdateRequest, authorization
 @router.delete("/{memory_id}", status_code=204)
 async def delete_memory(memory_id: str, authorization: str = Header(...)):
     user_id = get_user_id(authorization)
-    existing = supabase.table("memories").select("id, file_path").eq("id", memory_id).eq("user_id", user_id).execute()
+    existing = supabase.table("memories").select("id, file_url").eq("id", memory_id).eq("user_id", user_id).execute()
     if not existing.data:
         raise HTTPException(status_code=404, detail="Memory not found")
-    file_path = existing.data[0].get("file_path")
-    if file_path:
+    file_path = existing.data[0].get("file_url")
+    if file_path and not str(file_path).startswith(("http://", "https://")):
         supabase.storage.from_("memories").remove([file_path])
     supabase.table("memories").delete().eq("id", memory_id).eq("user_id", user_id).execute()

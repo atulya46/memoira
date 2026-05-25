@@ -315,7 +315,7 @@ export default function HomePage() {
                       <DialogTitle style={{ fontFamily: "var(--font-playfair)" }}>Start a new memory</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleCreate} className="space-y-4 mt-2">
-                      <div className="space-y-1.5">
+                        <div className="space-y-1.5 min-w-0">
                         <Label htmlFor="name" className="font-[family-name:var(--font-caveat)] text-lg">Journal name</Label>
                         <input
                           id="name"
@@ -323,7 +323,7 @@ export default function HomePage() {
                           value={form.name}
                           onChange={(e) => setForm({ ...form, name: e.target.value })}
                           required
-                          className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
+                            className="w-full min-w-0 max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
                           style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
                         />
                       </div>
@@ -476,14 +476,14 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="space-y-1.5">
+                          <div className="space-y-1.5 min-w-0">
               <Label htmlFor="display-name" className="font-[family-name:var(--font-caveat)] text-lg">Display name</Label>
               <input
                 id="display-name"
                 placeholder="Your name"
                 value={nameInput}
                 onChange={e => setNameInput(e.target.value)}
-                className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
+                              className="w-full min-w-0 max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
                 style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
               />
             </div>
@@ -506,7 +506,7 @@ export default function HomePage() {
                 placeholder="you@example.com"
                 value={emailInput}
                 onChange={e => setEmailInput(e.target.value)}
-                className="w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
+                className="w-full min-w-0 max-w-full rounded-xl px-3 py-2.5 outline-none font-[family-name:var(--font-caveat)] text-lg"
                 style={{ border: "1.5px solid rgba(139,94,60,0.25)", background: "rgba(250,244,234,0.7)", color: "#1a1008" }}
               />
               <p className="font-[family-name:var(--font-caveat)] text-sm opacity-60" style={{ color: "#9a8070" }}>

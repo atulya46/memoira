@@ -18,8 +18,13 @@ def create_signed_url(path: str | None) -> str | None:
 
 def sign_memory(memory: dict[str, Any]) -> dict[str, Any]:
     signed = dict(memory)
-    path = signed.get("file_path")
-    if path:
+    stored_media = signed.get("file_path") or signed.get("file_url")
+    if isinstance(stored_media, str) and stored_media.startswith(("http://", "https://")):
+        signed["file_url"] = stored_media
+        return signed
+
+    path = stored_media
+    if isinstance(path, str) and path:
         signed["file_url"] = create_signed_url(path)
     return signed
 
