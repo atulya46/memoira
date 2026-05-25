@@ -21,6 +21,12 @@ const HOME_THEMES = [
 ] as const;
 
 type HomeThemeKey = typeof HOME_THEMES[number]["key"];
+const FONT_SCALE_OPTIONS = [
+  { value: 96, label: "Compact" },
+  { value: 102, label: "Comfort" },
+  { value: 108, label: "Large" },
+  { value: 114, label: "Larger" },
+] as const;
 
 function getLatestMemoryDate(trip: Trip): string {
   const mems = trip.memories ?? [];
@@ -39,10 +45,6 @@ function formatTripDate(start: string, end: string | null | undefined): string {
     : `${fmt(s, true)} – ${fmt(e, true)}`;
 }
 
-function formatMemoryDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
-
 export default function HomePage() {
   const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -52,9 +54,9 @@ export default function HomePage() {
   const [form, setForm] = useState({ name: "", start_date: "", end_date: "", single_day: false });
   const [captureOpen, setCaptureOpen] = useState(false);
   const [selectedJournalId, setSelectedJournalId] = useState<string>("");
-  const [manageOpen, setManageOpen] = useState(false);
-  const [manageJournalId, setManageJournalId] = useState<string>("");
+  const [deletingJournalId, setDeletingJournalId] = useState("");
   const [homeTheme, setHomeTheme] = useState<HomeThemeKey>("earthy");
+  const [fontScale, setFontScale] = useState(100);
   const [profileOpen, setProfileOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -84,6 +86,8 @@ export default function HomePage() {
     const saved = localStorage.getItem("memoiraaa_home_theme") as string | null;
     const migratedKey = saved === "ghibli" ? "earthy" : saved;
     if (migratedKey && HOME_THEMES.find(t => t.key === migratedKey)) setHomeTheme(migratedKey as HomeThemeKey);
+    const savedFontScale = Number(localStorage.getItem("memoiraaa_font_scale") ?? "100");
+    if (FONT_SCALE_OPTIONS.some(option => option.value === savedFontScale)) setFontScale(savedFontScale);
 
     const savedName = localStorage.getItem("memoiraaa_user_name") ?? "";
     const savedDob  = localStorage.getItem("memoiraaa_dob") ?? "";
@@ -113,6 +117,11 @@ export default function HomePage() {
   useEffect(() => {
     if (open) window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [open]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--memoira-root-font-size", `${fontScale}%`);
+    localStorage.setItem("memoiraaa_font_scale", String(fontScale));
+  }, [fontScale]);
 
   function switchHomeTheme(key: HomeThemeKey) {
     setHomeTheme(key);
@@ -199,10 +208,22 @@ export default function HomePage() {
     } catch { setCreating(false); }
   }
 
+  async function handleDeleteJournal(trip: Trip) {
+    if (!confirm(`Delete "${trip.name}" and all of its memories?`)) return;
+    setDeletingJournalId(trip.id);
+    try {
+      await api.trips.delete(trip.id);
+      await loadTrips();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeletingJournalId("");
+    }
+  }
+
   const selectedJournal = captureJournals.find(t => t.id === selectedJournalId);
   const selectedPhotoCount = (selectedJournal?.memories ?? []).filter(m => m.type === "photo").length;
   const currentTheme = HOME_THEMES.find(t => t.key === homeTheme) ?? HOME_THEMES[0];
-  const manageJournal = sortedTrips.find(t => t.id === manageJournalId);
 
   return (
     <div className="min-h-screen" style={{ background: currentTheme.bg }}>
@@ -431,7 +452,13 @@ export default function HomePage() {
           <p className="font-[family-name:var(--font-caveat)] text-lg" style={{ color: currentTheme.sub, opacity: sortedTrips.length > 0 ? 0.65 : 0 }}>
             {sortedTrips.length} journal{sortedTrips.length !== 1 ? "s" : ""}
           </p>
-          <HomeThemeDropdown value={homeTheme} onChange={switchHomeTheme} currentTheme={currentTheme} />
+          <DisplaySettings
+            themeValue={homeTheme}
+            onThemeChange={switchHomeTheme}
+            fontScale={fontScale}
+            onFontScaleChange={setFontScale}
+            currentTheme={currentTheme}
+          />
         </div>
 
         {loading ? (
@@ -449,10 +476,8 @@ export default function HomePage() {
                 key={trip.id}
                 trip={trip}
                 accent={currentTheme.accent}
-                onManage={(tripId) => {
-                  setManageJournalId(tripId);
-                  setManageOpen(true);
-                }}
+                onDelete={handleDeleteJournal}
+                deleting={deletingJournalId === trip.id}
               />
             ))}
           </div>
@@ -612,14 +637,6 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
-      <ManageMemoriesDialog
-        open={manageOpen}
-        onOpenChange={setManageOpen}
-        trip={manageJournal}
-        accent={currentTheme.accent}
-        onDeleted={loadTrips}
-      />
-
       {/* About modal */}
       {aboutOpen && (
         <div
@@ -670,7 +687,17 @@ export default function HomePage() {
   );
 }
 
-function JournalCard({ trip, accent, onManage }: { trip: Trip; accent: string; onManage: (tripId: string) => void }) {
+function JournalCard({
+  trip,
+  accent,
+  onDelete,
+  deleting,
+}: {
+  trip: Trip;
+  accent: string;
+  onDelete: (trip: Trip) => void;
+  deleting: boolean;
+}) {
   const photos = (trip.memories ?? []).filter(m => m.type === "photo" && m.file_url);
   const hasPhotos = photos.length > 0;
   const isReady = trip.status === "ready";
@@ -685,7 +712,6 @@ function JournalCard({ trip, accent, onManage }: { trip: Trip; accent: string; o
     : null;
 
   const dateRange = trip.start_date ? formatTripDate(trip.start_date, trip.end_date) : "";
-  const memoryCount = trip.memories?.length ?? 0;
 
   return (
     <div className="relative group/card">
@@ -751,138 +777,23 @@ function JournalCard({ trip, accent, onManage }: { trip: Trip; accent: string; o
           </div>
         </div>
       </Link>
-      <button
+      {/* <button
         type="button"
-        onClick={() => onManage(trip.id)}
-        title="Manage memories"
-        className="absolute left-2 top-2 flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 sm:opacity-0 sm:group-hover/card:opacity-100"
-        style={{ background: "rgba(250,244,234,0.92)", border: `1px solid ${accent}35`, color: accent, boxShadow: "0 2px 10px rgba(42,26,8,0.16)" }}>
+        onClick={() => onDelete(trip)}
+        disabled={deleting}
+        title="Delete journal"
+        className="absolute left-2 top-2 flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 disabled:opacity-45"
+        style={{ background: "rgba(250,244,234,0.92)", border: "1px solid rgba(192,57,43,0.16)", color: "#a33a2d", boxShadow: "0 2px 10px rgba(42,26,8,0.16)" }}>
+        {deleting ? (
+          <span className="font-[family-name:var(--font-caveat)] text-lg">…</span>
+        ) : (
         <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
           <path d="M3.2 5.6h11.6M7 3.4h4M6.2 5.6l.5 8.5c.04.7.55 1.2 1.25 1.2h2.1c.7 0 1.21-.5 1.25-1.2l.5-8.5" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"/>
           <path d="M8 8.2v4.2M10 8.2v4.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
         </svg>
-        {memoryCount > 0 && (
-          <span
-            className="absolute -right-1 -top-1 min-w-4 rounded-full px-1 text-center font-sans text-[10px] font-bold leading-4"
-            style={{ background: accent, color: "#fff" }}>
-            {memoryCount}
-          </span>
         )}
-      </button>
+      </button> */}
     </div>
-  );
-}
-
-function ManageMemoriesDialog({
-  open,
-  onOpenChange,
-  trip,
-  accent,
-  onDeleted,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  trip?: Trip;
-  accent: string;
-  onDeleted: () => Promise<Trip[]>;
-}) {
-  const [deletingId, setDeletingId] = useState("");
-  const memories = [...(trip?.memories ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-  async function handleDelete(memoryId: string) {
-    if (!confirm("Delete this memory?")) return;
-    setDeletingId(memoryId);
-    try {
-      await api.memories.delete(memoryId);
-      await onDeleted();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDeletingId("");
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle style={{ fontFamily: "var(--font-playfair)" }}>
-            Manage memories
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3 mt-1">
-          <p className="font-[family-name:var(--font-caveat)] text-lg leading-snug" style={{ color: "#6a4828" }}>
-            {trip?.name ?? "Journal"}
-          </p>
-          {memories.length === 0 ? (
-            <div className="rounded-xl px-4 py-6 text-center" style={{ background: "rgba(139,94,60,0.06)", border: "1px solid rgba(139,94,60,0.14)" }}>
-              <p className="font-[family-name:var(--font-caveat)] text-lg" style={{ color: "#9a8070" }}>
-                No memories here yet.
-              </p>
-            </div>
-          ) : (
-            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
-              {memories.map(memory => {
-                const meta = memory.ai_metadata as Record<string, string> | undefined;
-                const label = memory.type === "photo"
-                  ? (meta?.description || "Photo memory")
-                  : memory.type === "voice"
-                  ? (memory.content?.trim() || "Voice note")
-                  : (memory.content?.trim() || "Written note");
-                return (
-                  <div
-                    key={memory.id}
-                    className="flex items-center gap-3 rounded-xl p-2.5"
-                    style={{ background: "rgba(250,244,234,0.78)", border: "1px solid rgba(139,94,60,0.14)" }}>
-                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl flex items-center justify-center"
-                      style={{ background: "rgba(139,94,60,0.08)", color: accent }}>
-                      {memory.type === "photo" && memory.file_url ? (
-                        <img src={memory.file_url} alt="" className="h-full w-full object-cover" />
-                      ) : memory.type === "voice" ? (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <rect x="9" y="3" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.6"/>
-                          <path d="M5 11c0 4 3 6.5 7 6.5s7-2.5 7-6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                          <path d="M12 17.5v3M9 20.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                        </svg>
-                      ) : (
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                          <path d="M5 4h10l4 4v12H5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
-                          <path d="M15 4v4h4M8 12h8M8 15h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-[family-name:var(--font-caveat)] text-base leading-tight" style={{ color: "#3a2510" }}>
-                        {label}
-                      </p>
-                      <p className="font-[family-name:var(--font-caveat)] text-sm" style={{ color: "#9a8070" }}>
-                        {memory.type === "photo" ? "Photo" : memory.type === "voice" ? "Voice" : "Note"} · {formatMemoryDate(memory.created_at)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(memory.id)}
-                      disabled={deletingId === memory.id}
-                      className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center transition-opacity hover:opacity-75 disabled:opacity-45"
-                      style={{ background: "rgba(192,57,43,0.1)", color: "#a33a2d", border: "1px solid rgba(192,57,43,0.16)" }}
-                      title="Delete memory">
-                      {deletingId === memory.id ? (
-                        <span className="font-[family-name:var(--font-caveat)] text-lg">…</span>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                          <path d="M3.2 5.6h11.6M7 3.4h4M6.2 5.6l.5 8.5c.04.7.55 1.2 1.25 1.2h2.1c.7 0 1.21-.5 1.25-1.2l.5-8.5" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"/>
-                          <path d="M8 8.2v4.2M10 8.2v4.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -907,9 +818,17 @@ function EmptyState({ onNew, accent, text, sub }: { onNew: () => void; accent: s
   );
 }
 
-function HomeThemeDropdown({ value, onChange, currentTheme }: {
-  value: HomeThemeKey;
-  onChange: (k: HomeThemeKey) => void;
+function DisplaySettings({
+  themeValue,
+  onThemeChange,
+  fontScale,
+  onFontScaleChange,
+  currentTheme,
+}: {
+  themeValue: HomeThemeKey;
+  onThemeChange: (k: HomeThemeKey) => void;
+  fontScale: number;
+  onFontScaleChange: (scale: number) => void;
   currentTheme: typeof HOME_THEMES[number];
 }) {
   const [open, setOpen] = useState(false);
@@ -928,7 +847,14 @@ function HomeThemeDropdown({ value, onChange, currentTheme }: {
     };
   }, [open]);
 
-  const selected = HOME_THEMES.find(t => t.key === value) ?? HOME_THEMES[0];
+  const selected = HOME_THEMES.find(t => t.key === themeValue) ?? HOME_THEMES[0];
+  const selectedFont = FONT_SCALE_OPTIONS.find(option => option.value === fontScale) ?? FONT_SCALE_OPTIONS[1];
+  const fontIndex = Math.max(0, FONT_SCALE_OPTIONS.findIndex(option => option.value === fontScale));
+
+  function adjustFont(delta: number) {
+    const nextIndex = Math.min(FONT_SCALE_OPTIONS.length - 1, Math.max(0, fontIndex + delta));
+    onFontScaleChange(FONT_SCALE_OPTIONS[nextIndex].value);
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -942,7 +868,7 @@ function HomeThemeDropdown({ value, onChange, currentTheme }: {
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
         }}>
-        <span>{selected.icon} {selected.label}</span>
+        <span>Display</span>
         <svg width="8" height="5" viewBox="0 0 9 5" fill="none"
           style={{ marginLeft: 2, flexShrink: 0, transition: "transform 0.15s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>
           <path d="M1 1l3.5 3L8 1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -955,23 +881,78 @@ function HomeThemeDropdown({ value, onChange, currentTheme }: {
             border: `1px solid ${currentTheme.accent}30`,
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
-            minWidth: 120,
+            width: 230,
           }}>
-          {HOME_THEMES.map(t => (
-            <button
-              key={t.key}
-              onClick={() => { onChange(t.key); setOpen(false); }}
-              className="w-full px-3 py-2 text-left font-[family-name:var(--font-caveat)] text-sm flex items-center gap-2 transition-opacity hover:opacity-75"
-              style={{
-                color: t.key === value ? currentTheme.accent : currentTheme.sub,
-                fontWeight: t.key === value ? 600 : 400,
-                background: t.key === value ? `${currentTheme.accent}18` : "transparent",
-              }}>
-              <span>{t.icon}</span>
-              <span>{t.label}</span>
-              {t.key === value && <span className="ml-auto text-xs opacity-70">✓</span>}
-            </button>
-          ))}
+          <div className="px-3 pt-3 pb-2">
+            <p className="font-[family-name:var(--font-caveat)] text-sm" style={{ color: currentTheme.sub, opacity: 0.72 }}>
+              Theme
+            </p>
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              {HOME_THEMES.map(t => (
+                <button
+                  key={t.key}
+                  onClick={() => onThemeChange(t.key)}
+                  title={t.label}
+                  className="h-10 rounded-lg flex items-center justify-center transition-transform hover:scale-[1.03]"
+                  style={{
+                    border: `1px solid ${t.key === themeValue ? currentTheme.accent : "rgba(139,94,60,0.14)"}`,
+                    background: t.key === themeValue ? `${currentTheme.accent}18` : "rgba(250,244,234,0.55)",
+                    color: t.key === themeValue ? currentTheme.accent : currentTheme.sub,
+                  }}>
+                  <span aria-hidden="true">{t.icon}</span>
+                  <span className="sr-only">{t.label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 font-[family-name:var(--font-caveat)] text-sm" style={{ color: currentTheme.sub }}>
+              {selected.label}
+            </p>
+          </div>
+
+          <div className="px-3 py-3" style={{ borderTop: "1px solid rgba(139,94,60,0.12)" }}>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-[family-name:var(--font-caveat)] text-sm" style={{ color: currentTheme.sub, opacity: 0.72 }}>
+                  Text size
+                </p>
+                <p className="font-[family-name:var(--font-caveat)] text-base" style={{ color: currentTheme.text }}>
+                  {selectedFont.label}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => adjustFont(-1)}
+                  disabled={fontIndex === 0}
+                  className="h-8 w-8 rounded-lg font-[family-name:var(--font-caveat)] text-lg transition-opacity hover:opacity-75 disabled:opacity-35"
+                  style={{ border: `1px solid ${currentTheme.accent}30`, color: currentTheme.accent, background: "rgba(250,244,234,0.62)" }}>
+                  A-
+                </button>
+                <button
+                  type="button"
+                  onClick={() => adjustFont(1)}
+                  disabled={fontIndex === FONT_SCALE_OPTIONS.length - 1}
+                  className="h-8 w-8 rounded-lg font-[family-name:var(--font-caveat)] text-lg transition-opacity hover:opacity-75 disabled:opacity-35"
+                  style={{ border: `1px solid ${currentTheme.accent}30`, color: currentTheme.accent, background: "rgba(250,244,234,0.62)" }}>
+                  A+
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-1.5">
+              {FONT_SCALE_OPTIONS.map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onFontScaleChange(option.value)}
+                  className="h-1.5 rounded-full transition-opacity hover:opacity-80"
+                  style={{
+                    background: option.value <= fontScale ? currentTheme.accent : "rgba(139,94,60,0.16)",
+                  }}>
+                  <span className="sr-only">{option.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
     </div>

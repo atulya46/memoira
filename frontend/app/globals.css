@@ -70,6 +70,7 @@
   --sidebar-accent-foreground: oklch(0.35 0.06 45);
   --sidebar-border: oklch(0.88 0.02 75);
   --sidebar-ring: oklch(0.55 0.12 40);
+  --memoira-root-font-size: 100%;
 }
 
 @keyframes memoira-draw {
@@ -107,6 +108,8 @@
   }
   html {
     @apply font-sans;
+    font-size: var(--memoira-root-font-size);
+    transition: font-size 180ms ease;
   }
   h1, h2, h3 {
     font-family: var(--font-playfair), serif;

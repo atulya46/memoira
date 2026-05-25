@@ -39,6 +39,7 @@ export const api = {
     create: (body: TripCreatePayload) =>
       request<Trip>("/api/trips", { method: "POST", body: JSON.stringify(body) }),
     get: (id: string) => request<TripWithMemories>(`/api/trips/${id}`),
+    delete: (id: string) => request<void>(`/api/trips/${id}`, { method: "DELETE" }),
     reconstruct: (id: string) => request<ReconstructResult>(`/api/trips/${id}/reconstruct`, { method: "POST" }),
     generateScrapbook: (id: string) => request<Scrapbook>(`/api/trips/${id}/generate-scrapbook`, { method: "POST" }),
     getScrapbook: (id: string) => request<Scrapbook>(`/api/trips/${id}/scrapbook`),

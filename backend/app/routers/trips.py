@@ -83,6 +83,27 @@ async def get_trip(trip_id: str, authorization: str = Header(...)):
     return {**trip, "memories": sign_memories(memories.data)}
 
 
+@router.delete("/{trip_id}", status_code=204)
+async def delete_trip(trip_id: str, authorization: str = Header(...)):
+    user_id = get_user_id(authorization)
+    get_owned_trip(trip_id, user_id, "id")
+    memories = (
+        supabase.table("memories")
+        .select("file_url")
+        .eq("trip_id", trip_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    storage_paths = [
+        memory["file_url"]
+        for memory in memories.data or []
+        if memory.get("file_url") and not str(memory["file_url"]).startswith(("http://", "https://"))
+    ]
+    if storage_paths:
+        supabase.storage.from_("memories").remove(storage_paths)
+    supabase.table("trips").delete().eq("id", trip_id).eq("user_id", user_id).execute()
+
+
 @router.post("/{trip_id}/reconstruct")
 async def reconstruct_timeline(trip_id: str, authorization: str = Header(...)):
     user_id = get_user_id(authorization)
