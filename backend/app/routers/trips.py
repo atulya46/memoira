@@ -11,12 +11,28 @@ from app.services import claude_service
 router = APIRouter(prefix="/api/trips", tags=["trips"])
 
 
+def _insert_scrapbook_with_compatible_theme(trip_id: str, ai_content: dict) -> str:
+    payload = {
+        "trip_id": trip_id,
+        "theme": "earthy",
+        "is_shared": False,
+        "ai_config": ai_content,
+    }
+    try:
+        return supabase.table("scrapbooks").insert(payload).execute().data[0]["id"]
+    except Exception as exc:
+        if "theme" not in str(exc).lower():
+            raise
+        payload["theme"] = "ghibli"
+        return supabase.table("scrapbooks").insert(payload).execute().data[0]["id"]
+
+
 @router.get("")
 async def list_trips(authorization: str = Header(...)):
     user_id = get_user_id(authorization)
     result = (
         supabase.table("trips")
-        .select("*, memories(id, type, file_url, ai_metadata, created_at), scrapbooks(id, theme)")
+        .select("*, memories(id, type, file_url, content, ai_metadata, created_at), scrapbooks(id, theme)")
         .eq("user_id", user_id)
         .order("created_at", desc=True)
         .execute()
@@ -180,24 +196,24 @@ async def generate_scrapbook(trip_id: str, authorization: str = Header(...)):
         for day, memories_for_day in sorted(days_map.items(), key=lambda item: int(item[0]))
     ]
 
-    ai_content = await claude_service.generate_scrapbook_content(trip["name"], days)
+    try:
+        ai_content = await claude_service.generate_scrapbook_content(trip["name"], days)
+    except Exception:
+        ai_content = {
+            "title": trip["name"],
+            "day_summaries": {
+                str(day["day_number"]): "A day worth remembering."
+                for day in days
+            },
+            "cover_prompt": f"A warm hand-drawn travel scrapbook cover for {trip['name']}",
+        }
 
     existing = supabase.table("scrapbooks").select("id").eq("trip_id", trip_id).execute()
     if existing.data:
         scrapbook_id = existing.data[0]["id"]
         supabase.table("scrapbooks").update({"ai_config": ai_content}).eq("id", scrapbook_id).execute()
     else:
-        scrapbook_id = (
-            supabase.table("scrapbooks")
-            .insert({
-                "trip_id": trip_id,
-                "theme": "earthy",
-                "is_shared": False,
-                "ai_config": ai_content,
-            })
-            .execute()
-            .data[0]["id"]
-        )
+        scrapbook_id = _insert_scrapbook_with_compatible_theme(trip_id, ai_content)
 
     for day in days:
         day_num = day["day_number"]

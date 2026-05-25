@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/shared/Navbar";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api, Trip } from "@/lib/api";
@@ -39,6 +39,10 @@ function formatTripDate(start: string, end: string | null | undefined): string {
     : `${fmt(s, true)} – ${fmt(e, true)}`;
 }
 
+function formatMemoryDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -48,6 +52,8 @@ export default function HomePage() {
   const [form, setForm] = useState({ name: "", start_date: "", end_date: "", single_day: false });
   const [captureOpen, setCaptureOpen] = useState(false);
   const [selectedJournalId, setSelectedJournalId] = useState<string>("");
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageJournalId, setManageJournalId] = useState<string>("");
   const [homeTheme, setHomeTheme] = useState<HomeThemeKey>("earthy");
   const [profileOpen, setProfileOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -193,14 +199,10 @@ export default function HomePage() {
     } catch { setCreating(false); }
   }
 
-  function handleCaptureOpen() {
-    if (captureJournals.length > 0 && !selectedJournalId) setSelectedJournalId(captureJournals[0].id);
-    setCaptureOpen(true);
-  }
-
   const selectedJournal = captureJournals.find(t => t.id === selectedJournalId);
   const selectedPhotoCount = (selectedJournal?.memories ?? []).filter(m => m.type === "photo").length;
   const currentTheme = HOME_THEMES.find(t => t.key === homeTheme) ?? HOME_THEMES[0];
+  const manageJournal = sortedTrips.find(t => t.id === manageJournalId);
 
   return (
     <div className="min-h-screen" style={{ background: currentTheme.bg }}>
@@ -442,7 +444,17 @@ export default function HomePage() {
           <EmptyState onNew={() => setOpen(true)} accent={currentTheme.accent} text={currentTheme.text} sub={currentTheme.sub} />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {filteredTrips.map((trip) => <JournalCard key={trip.id} trip={trip} accent={currentTheme.accent} />)}
+            {filteredTrips.map((trip) => (
+              <JournalCard
+                key={trip.id}
+                trip={trip}
+                accent={currentTheme.accent}
+                onManage={(tripId) => {
+                  setManageJournalId(tripId);
+                  setManageOpen(true);
+                }}
+              />
+            ))}
           </div>
         )}
       </main>
@@ -600,6 +612,14 @@ export default function HomePage() {
         </DialogContent>
       </Dialog>
 
+      <ManageMemoriesDialog
+        open={manageOpen}
+        onOpenChange={setManageOpen}
+        trip={manageJournal}
+        accent={currentTheme.accent}
+        onDeleted={loadTrips}
+      />
+
       {/* About modal */}
       {aboutOpen && (
         <div
@@ -650,7 +670,7 @@ export default function HomePage() {
   );
 }
 
-function JournalCard({ trip, accent }: { trip: Trip; accent: string }) {
+function JournalCard({ trip, accent, onManage }: { trip: Trip; accent: string; onManage: (tripId: string) => void }) {
   const photos = (trip.memories ?? []).filter(m => m.type === "photo" && m.file_url);
   const hasPhotos = photos.length > 0;
   const isReady = trip.status === "ready";
@@ -665,70 +685,204 @@ function JournalCard({ trip, accent }: { trip: Trip; accent: string }) {
     : null;
 
   const dateRange = trip.start_date ? formatTripDate(trip.start_date, trip.end_date) : "";
+  const memoryCount = trip.memories?.length ?? 0;
 
   return (
-    <Link href={href}>
-      <div className="group rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-        style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.7)", backdropFilter: "blur(8px)" }}>
-        {/* Square image area */}
-        <div className="relative overflow-hidden" style={{ paddingBottom: "100%", background: "linear-gradient(135deg, #c8d8b8 0%, #d8cca8 100%)" }}>
-          <div className="absolute inset-0">
-            {photos.length === 0 && trip.cover_image_url && (
-              <img src={trip.cover_image_url} alt={trip.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-            )}
-            {photos.length === 0 && !trip.cover_image_url && (
-              <div className="w-full h-full flex items-center justify-center">
-                <JournalDoodle size={56} />
-              </div>
-            )}
-            {photos.length === 1 && (
-              <img src={photos[0].file_url!} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-            )}
-            {photos.length === 2 && (
-              <div className="grid grid-cols-2 h-full gap-0.5">
-                {photos.map(p => <img key={p.id} src={p.file_url!} alt="" className="w-full h-full object-cover" />)}
-              </div>
-            )}
-            {photos.length >= 3 && (
-              <div className="grid grid-cols-2 grid-rows-2 h-full gap-0.5">
-                <img src={photos[0].file_url!} alt="" className="row-span-2 w-full h-full object-cover" />
-                <img src={photos[1].file_url!} alt="" className="w-full h-full object-cover" />
-                <div className="relative">
-                  <img src={photos[2].file_url!} alt="" className="w-full h-full object-cover" />
-                  {photos.length > 3 && (
-                    <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.42)" }}>
-                      <span className="font-[family-name:var(--font-caveat)] text-white text-xl font-bold">+{photos.length - 3}</span>
-                    </div>
-                  )}
+    <div className="relative group/card">
+      <Link href={href}>
+        <div className="group rounded-2xl overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+          style={{ background: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.7)", backdropFilter: "blur(8px)" }}>
+          {/* Square image area */}
+          <div className="relative overflow-hidden" style={{ paddingBottom: "100%", background: "linear-gradient(135deg, #c8d8b8 0%, #d8cca8 100%)" }}>
+            <div className="absolute inset-0">
+              {photos.length === 0 && trip.cover_image_url && (
+                <img src={trip.cover_image_url} alt={trip.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              )}
+              {photos.length === 0 && !trip.cover_image_url && (
+                <div className="w-full h-full flex items-center justify-center">
+                  <JournalDoodle size={56} />
                 </div>
+              )}
+              {photos.length === 1 && (
+                <img src={photos[0].file_url!} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              )}
+              {photos.length === 2 && (
+                <div className="grid grid-cols-2 h-full gap-0.5">
+                  {photos.map(p => <img key={p.id} src={p.file_url!} alt="" className="w-full h-full object-cover" />)}
+                </div>
+              )}
+              {photos.length >= 3 && (
+                <div className="grid grid-cols-2 grid-rows-2 h-full gap-0.5">
+                  <img src={photos[0].file_url!} alt="" className="row-span-2 w-full h-full object-cover" />
+                  <img src={photos[1].file_url!} alt="" className="w-full h-full object-cover" />
+                  <div className="relative">
+                    <img src={photos[2].file_url!} alt="" className="w-full h-full object-cover" />
+                    {photos.length > 3 && (
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.42)" }}>
+                        <span className="font-[family-name:var(--font-caveat)] text-white text-xl font-bold">+{photos.length - 3}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Status badge — only when meaningful, top-right */}
+            {badgeLabel && (
+              <div className="absolute top-2 right-2">
+                <span className="font-[family-name:var(--font-caveat)] text-base px-2.5 py-1 rounded-full"
+                  style={{
+                    background: isReady || hasPhotos ? `${accent}dd` : "rgba(255,255,255,0.8)",
+                    color: isReady || hasPhotos ? "#fff" : "#5a6e4a",
+                  }}>
+                  {badgeLabel}
+                </span>
               </div>
             )}
           </div>
-          {/* Status badge — only when meaningful, top-right */}
-          {badgeLabel && (
-            <div className="absolute top-2 right-2">
-              <span className="font-[family-name:var(--font-caveat)] text-base px-2.5 py-1 rounded-full"
-                style={{
-                  background: isReady || hasPhotos ? `${accent}dd` : "rgba(255,255,255,0.8)",
-                  color: isReady || hasPhotos ? "#fff" : "#5a6e4a",
-                }}>
-                {badgeLabel}
-              </span>
+
+          {/* Info */}
+          <div className="px-3 py-3 space-y-1">
+            <h3 className="font-bold text-lg leading-tight truncate" style={{ fontFamily: "var(--font-playfair)", color: "#2e3e20" }}>
+              {trip.name}
+            </h3>
+            {dateRange && (
+              <p className="font-[family-name:var(--font-caveat)] text-base truncate" style={{ color: "#8a9e7a" }}>{dateRange}</p>
+            )}
+          </div>
+        </div>
+      </Link>
+      <button
+        type="button"
+        onClick={() => onManage(trip.id)}
+        title="Manage memories"
+        className="absolute left-2 top-2 flex h-9 w-9 items-center justify-center rounded-full transition-all hover:scale-105 sm:opacity-0 sm:group-hover/card:opacity-100"
+        style={{ background: "rgba(250,244,234,0.92)", border: `1px solid ${accent}35`, color: accent, boxShadow: "0 2px 10px rgba(42,26,8,0.16)" }}>
+        <svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+          <path d="M3.2 5.6h11.6M7 3.4h4M6.2 5.6l.5 8.5c.04.7.55 1.2 1.25 1.2h2.1c.7 0 1.21-.5 1.25-1.2l.5-8.5" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M8 8.2v4.2M10 8.2v4.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+        </svg>
+        {memoryCount > 0 && (
+          <span
+            className="absolute -right-1 -top-1 min-w-4 rounded-full px-1 text-center font-sans text-[10px] font-bold leading-4"
+            style={{ background: accent, color: "#fff" }}>
+            {memoryCount}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+function ManageMemoriesDialog({
+  open,
+  onOpenChange,
+  trip,
+  accent,
+  onDeleted,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  trip?: Trip;
+  accent: string;
+  onDeleted: () => Promise<Trip[]>;
+}) {
+  const [deletingId, setDeletingId] = useState("");
+  const memories = [...(trip?.memories ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at));
+
+  async function handleDelete(memoryId: string) {
+    if (!confirm("Delete this memory?")) return;
+    setDeletingId(memoryId);
+    try {
+      await api.memories.delete(memoryId);
+      await onDeleted();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeletingId("");
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle style={{ fontFamily: "var(--font-playfair)" }}>
+            Manage memories
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 mt-1">
+          <p className="font-[family-name:var(--font-caveat)] text-lg leading-snug" style={{ color: "#6a4828" }}>
+            {trip?.name ?? "Journal"}
+          </p>
+          {memories.length === 0 ? (
+            <div className="rounded-xl px-4 py-6 text-center" style={{ background: "rgba(139,94,60,0.06)", border: "1px solid rgba(139,94,60,0.14)" }}>
+              <p className="font-[family-name:var(--font-caveat)] text-lg" style={{ color: "#9a8070" }}>
+                No memories here yet.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+              {memories.map(memory => {
+                const meta = memory.ai_metadata as Record<string, string> | undefined;
+                const label = memory.type === "photo"
+                  ? (meta?.description || "Photo memory")
+                  : memory.type === "voice"
+                  ? (memory.content?.trim() || "Voice note")
+                  : (memory.content?.trim() || "Written note");
+                return (
+                  <div
+                    key={memory.id}
+                    className="flex items-center gap-3 rounded-xl p-2.5"
+                    style={{ background: "rgba(250,244,234,0.78)", border: "1px solid rgba(139,94,60,0.14)" }}>
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl flex items-center justify-center"
+                      style={{ background: "rgba(139,94,60,0.08)", color: accent }}>
+                      {memory.type === "photo" && memory.file_url ? (
+                        <img src={memory.file_url} alt="" className="h-full w-full object-cover" />
+                      ) : memory.type === "voice" ? (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <rect x="9" y="3" width="6" height="10" rx="3" stroke="currentColor" strokeWidth="1.6"/>
+                          <path d="M5 11c0 4 3 6.5 7 6.5s7-2.5 7-6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                          <path d="M12 17.5v3M9 20.5h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                        </svg>
+                      ) : (
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M5 4h10l4 4v12H5z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+                          <path d="M15 4v4h4M8 12h8M8 15h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-[family-name:var(--font-caveat)] text-base leading-tight" style={{ color: "#3a2510" }}>
+                        {label}
+                      </p>
+                      <p className="font-[family-name:var(--font-caveat)] text-sm" style={{ color: "#9a8070" }}>
+                        {memory.type === "photo" ? "Photo" : memory.type === "voice" ? "Voice" : "Note"} · {formatMemoryDate(memory.created_at)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(memory.id)}
+                      disabled={deletingId === memory.id}
+                      className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center transition-opacity hover:opacity-75 disabled:opacity-45"
+                      style={{ background: "rgba(192,57,43,0.1)", color: "#a33a2d", border: "1px solid rgba(192,57,43,0.16)" }}
+                      title="Delete memory">
+                      {deletingId === memory.id ? (
+                        <span className="font-[family-name:var(--font-caveat)] text-lg">…</span>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                          <path d="M3.2 5.6h11.6M7 3.4h4M6.2 5.6l.5 8.5c.04.7.55 1.2 1.25 1.2h2.1c.7 0 1.21-.5 1.25-1.2l.5-8.5" stroke="currentColor" strokeWidth="1.45" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M8 8.2v4.2M10 8.2v4.2" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round"/>
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-
-        {/* Info */}
-        <div className="px-3 py-3 space-y-1">
-          <h3 className="font-bold text-lg leading-tight truncate" style={{ fontFamily: "var(--font-playfair)", color: "#2e3e20" }}>
-            {trip.name}
-          </h3>
-          {dateRange && (
-            <p className="font-[family-name:var(--font-caveat)] text-base truncate" style={{ color: "#8a9e7a" }}>{dateRange}</p>
-          )}
-        </div>
-      </div>
-    </Link>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -15,7 +15,18 @@ MAX_PHOTOS_PER_TRIP = 20
 MAX_NOTES_PER_TRIP = 200
 MAX_NOTE_CHARS = 10_000
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-ALLOWED_AUDIO_TYPES = {"audio/webm", "audio/wav", "audio/mpeg", "audio/mp4", "audio/ogg"}
+ALLOWED_AUDIO_TYPES = {
+    "audio/aac",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/wave",
+    "audio/webm",
+    "audio/x-m4a",
+    "audio/x-wav",
+    "video/webm",
+}
 Image.MAX_IMAGE_PIXELS = 25_000_000
 
 
@@ -125,13 +136,51 @@ def _validate_image_upload(file: UploadFile, file_bytes: bytes) -> str:
     return content_type
 
 
+def _normalize_content_type(content_type: str | None) -> str:
+    return (content_type or "").split(";", 1)[0].strip().lower()
+
+
+def _looks_like_audio(file_bytes: bytes) -> str | None:
+    if file_bytes.startswith(b"\x1a\x45\xdf\xa3"):
+        return "audio/webm"
+    if file_bytes.startswith(b"OggS"):
+        return "audio/ogg"
+    if len(file_bytes) > 12 and file_bytes[4:8] == b"ftyp":
+        return "audio/mp4"
+    if file_bytes.startswith(b"RIFF") and file_bytes[8:12] == b"WAVE":
+        return "audio/wav"
+    if file_bytes.startswith((b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")):
+        return "audio/mpeg"
+    return None
+
+
+def _audio_extension(content_type: str) -> str:
+    if content_type in {"audio/mp4", "audio/x-m4a", "audio/aac"}:
+        return "m4a"
+    if content_type in {"audio/wav", "audio/wave", "audio/x-wav"}:
+        return "wav"
+    if content_type == "audio/ogg":
+        return "ogg"
+    if content_type == "audio/mpeg":
+        return "mp3"
+    return "webm"
+
+
 def _validate_audio_upload(file: UploadFile, file_bytes: bytes) -> str:
-    content_type = (file.content_type or "").lower()
-    if content_type not in ALLOWED_AUDIO_TYPES:
-        raise HTTPException(status_code=415, detail="Unsupported audio type")
     if not file_bytes or len(file_bytes) > MAX_AUDIO_BYTES:
         raise HTTPException(status_code=413, detail="Audio exceeds the 15 MB limit")
-    return content_type
+    content_type = _normalize_content_type(file.content_type)
+    if content_type in ALLOWED_AUDIO_TYPES:
+        return "audio/webm" if content_type == "video/webm" else content_type
+
+    sniffed_type = _looks_like_audio(file_bytes)
+    if content_type in {"", "application/octet-stream"} and sniffed_type:
+        return sniffed_type
+    if sniffed_type and file.filename and "." in file.filename:
+        return sniffed_type
+
+    supported = ", ".join(sorted(t for t in ALLOWED_AUDIO_TYPES if not t.startswith("video/")))
+    raise HTTPException(status_code=415, detail=f"Unsupported audio type. Supported types: {supported}")
 
 
 def _count_trip_memories(trip_id: str, user_id: str, memory_type: str | None = None) -> int:
@@ -198,7 +247,7 @@ async def upload_voice(
 
     file_bytes = await file.read()
     content_type = _validate_audio_upload(file, file_bytes)
-    ext = "mp4" if "mp4" in content_type else "webm"
+    ext = _audio_extension(content_type)
     path = f"{user_id}/{trip_id}/{uuid.uuid4()}.{ext}"
 
     file_path = _upload_to_storage(file_bytes, path, content_type)

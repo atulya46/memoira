@@ -86,7 +86,7 @@ export interface Trip {
   cover_image_url: string | null;
   status: "draft" | "reconstructing" | "ready";
   created_at: string;
-  memories?: Pick<Memory, "id" | "type" | "file_url" | "ai_metadata" | "created_at">[];
+  memories?: Pick<Memory, "id" | "type" | "file_url" | "content" | "ai_metadata" | "created_at">[];
   scrapbooks?: { id: string; theme: string }[];
 }
 

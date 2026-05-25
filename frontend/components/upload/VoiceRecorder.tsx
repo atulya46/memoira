@@ -19,14 +19,14 @@ export default function VoiceRecorder({ tripId, onUploaded }: Props) {
 
   useEffect(() => {
     // Read display name from localStorage for use in transcription
-    const name = localStorage.getItem("memoira_user_name") ?? "";
+    const name = localStorage.getItem("memoiraaa_user_name") ?? "";
     setDisplayName(name);
   }, []);
 
   async function startRecording() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     // Pick the first MIME type the device supports — iOS uses audio/mp4, desktop uses audio/webm
-    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]
+    const mimeType = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", "audio/ogg"]
       .find(t => MediaRecorder.isTypeSupported(t)) ?? "";
     const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     chunksRef.current = [];
